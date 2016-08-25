@@ -8,7 +8,7 @@ module DPL
 
       def travis_tag
         # Check if $TRAVIS_TAG is unset or set but empty
-        if context.env.fetch('TRAVIS_TAG','') == ''
+        if context.env.fetch('TRAVIS_TAG', '') == ''
           nil
         else
           context.env['TRAVIS_TAG']
@@ -44,12 +44,22 @@ module DPL
       end
 
       def files
+        puts options.inspect
         if options[:file_glob]
           Array(options[:file]).map do |glob|
             Dir.glob(glob)
-          end.flatten
+          end.flatten.map do |file|
+            {:path => file}
+          end
         else
-          Array(options[:file])
+          Array(options[:file]).map do |file|
+            case file
+              when String then
+                {:path => file}
+              else
+                file
+            end
+          end
         end
       end
 
@@ -99,35 +109,40 @@ module DPL
           release_url = api.create_release(slug, get_tag, options.merge({:draft => true})).rels[:self].href
         end
 
+        puts "Foreach files"
         files.each do |file|
+          puts "file", file[:name]
+          if(!file.has_key?(:name))
+            file[:name] = Pathname.new(file[:path]).basename.to_s
+          end
+          puts "file becomes", file.inspect
           existing_url = nil
-          filename = Pathname.new(file).basename.to_s
           api.release(release_url).rels[:assets].get.data.each do |existing_file|
-            if existing_file.name == filename
+            if existing_file.name == file[:name]
               existing_url = existing_file.url
             end
           end
           if !existing_url
-            upload_file(file, filename, release_url)
+            upload_file(file, release_url)
           elsif existing_url && options[:overwrite]
-            log "#{filename} already exists, overwriting."
+            log "#{file[:name]} already exists, overwriting."
             api.delete_release_asset(existing_url)
-            upload_file(file, filename, release_url)
+            upload_file(file, release_url)
           else
-            log "#{filename} already exists, skipping."
+            log "#{file[:name]} already exists, skipping."
           end
         end
 
         api.update_release(release_url, {:draft => false}.merge(options))
       end
 
-      def upload_file(file, filename, release_url)
-        content_type = MIME::Types.type_for(file).first.to_s
+      def upload_file(file, release_url)
+        content_type = MIME::Types.type_for(file[:path]).first.to_s
         if content_type.empty?
           # Specify the default content type, as it is required by GitHub
           content_type = "application/octet-stream"
         end
-        api.upload_asset(release_url, file, {:name => filename, :content_type => content_type})
+        api.upload_asset(release_url, file[:path], {:name => file[:name], :content_type => content_type})
       end
     end
   end

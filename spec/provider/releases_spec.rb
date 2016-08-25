@@ -62,19 +62,19 @@ describe DPL::Provider::Releases do
 
   describe "#files" do
     example "without file globbing and a single file" do
-      expect(provider.files).to eq(['blah.txt'])
+      expect(provider.files).to eq([{:path=>"blah.txt"}])
     end
 
     example "without file globbing and multiple files" do
       provider.options.update(:file => ['foo.txt', 'bar.txt'])
-      expect(provider.files).to eq(['foo.txt', 'bar.txt'])
+      expect(provider.files).to eq([{:path=>"foo.txt"}, {:path=>"bar.txt"}])
     end
 
     example "with file globbing and a single glob" do
       provider.options.update(:file_glob => true)
       provider.options.update(:file => 'bl*.txt')
       expect(::Dir).to receive(:glob).with('bl*.txt').and_return(['blah.txt'])
-      expect(provider.files).to eq(['blah.txt'])
+      expect(provider.files).to eq([{:path=>"blah.txt"}])
     end
 
     example "with file globbing and multiple globs" do
@@ -82,7 +82,7 @@ describe DPL::Provider::Releases do
       provider.options.update(:file => ['f*.txt', 'b*.txt'])
       expect(::Dir).to receive(:glob).with('f*.txt').and_return(['foo.txt'])
       expect(::Dir).to receive(:glob).with('b*.txt').and_return(['bar.txt'])
-      expect(provider.files).to eq(['foo.txt', 'bar.txt'])
+      expect(provider.files).to eq([{:path=>"foo.txt"}, {:path=>"bar.txt"}])
     end
   end
 
@@ -153,10 +153,10 @@ describe DPL::Provider::Releases do
   end
 
   describe "#push_app" do
-    example "When Release Exists but has no Files" do
+    example "When Same file path but Different names" do
       allow_message_expectations_on_nil
 
-      provider.options.update(:file => ["test/foo.bar", "bar.txt"])
+      provider.options.update(:file => ["test/foo.txt", {:path=>"linux/bar", :name=>"bar (Linux)"}, {:path=>"darwin/bar", :name=>"bar (Mac OS)"}])
 
       allow(provider).to receive(:releases).and_return([""])
       allow(provider).to receive(:get_tag).and_return("v0.0.0")
@@ -172,8 +172,9 @@ describe DPL::Provider::Releases do
       allow(provider.api.release.rels[:assets]).to receive(:get).and_return({:data => [""]})
       allow(provider.api.release.rels[:assets].get).to receive(:data).and_return([])
 
-      expect(provider.api).to receive(:upload_asset).with(anything, "test/foo.bar", {:name=>"foo.bar", :content_type=>"application/octet-stream"})
-      expect(provider.api).to receive(:upload_asset).with(anything, "bar.txt", {:name=>"bar.txt", :content_type=>"text/plain"})
+      expect(provider.api).to receive(:upload_asset).with(anything, "test/foo.txt", {:name=>"foo.txt", :content_type=>"text/plain"})
+      expect(provider.api).to receive(:upload_asset).with(anything, "linux/bar", {:name=>"bar (Linux)", :content_type=>"application/octet-stream"})
+      expect(provider.api).to receive(:upload_asset).with(anything, "darwin/bar", {:name=>"bar (Mac OS)", :content_type=>"application/octet-stream"})
       expect(provider.api).to receive(:update_release).with(anything, hash_including(:draft => false))
 
       provider.push_app

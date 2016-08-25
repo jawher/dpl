@@ -1,6 +1,8 @@
 source 'https://rubygems.org'
 gemspec
 
+gem 'json', '~> 1.8.2'
+
 platforms :mri_19 do
   gem 'slop', '~> 3.6.0'
   gem 'ohai', '~> 7.4.0'
